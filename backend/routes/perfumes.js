@@ -1,4 +1,4 @@
-const express = require("express");
+﻿const express = require("express");
 const router = express.Router();
 const {
   listarPerfumes,
@@ -10,7 +10,7 @@ const {
   buscarFiltros,
 } = require("../controllers/perfumeController");
 
-const Perfume = require("../models/perfumeModel");
+const Perfume = require("../models/Perfume");
 const { proteger, admin } = require("../middleware/auth");
 
 // ===== ROTAS PÚBLICAS =====
