@@ -5,32 +5,27 @@ require('dotenv').config();
 
 const app = express();
 
-// Middlewares basicos
 app.use(cors());
 app.use(express.json());
 
-// Pegar URI do .env
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/perfumaria_ferrera';
 
-console.log('URI:', MONGODB_URI);
+mongoose.connect(MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+})
+.then(() => {
+  console.log('✅ MongoDB conectado!');
+})
+.catch(err => {
+  console.error('❌ Erro MongoDB:', err.message);
+});
 
-// Conectar ao MongoDB
-mongoose.connect(MONGODB_URI)
-  .then(() => {
-    console.log('✅ MongoDB conectado!');
-    
-    // Iniciar servidor so depois de conectar
-    const PORT = process.env.PORT || 5000;
-    app.listen(PORT, () => {
-      console.log('🚀 Servidor rodando na porta ' + PORT);
-      console.log('🌐 http://localhost:' + PORT);
-    });
-  })
-  .catch(err => {
-    console.error('❌ Erro MongoDB:', err.message);
-  });
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log('🚀 Servidor rodando na porta ' + PORT);
+});
 
-// Rotas
 app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
@@ -38,33 +33,16 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Importar rotas (com try-catch para nao quebrar)
-try {
-  app.use('/api/perfumes', require('./routes/perfumes'));
-  console.log('✅ Rotas de perfumes carregadas');
-} catch(e) {
-  console.log('⚠️ Rotas de perfumes nao carregadas:', e.message);
-}
+app.use('/api/auth', require('./routes/auth'));
 
-try {
-  app.use('/api/auth', require('./routes/auth'));
-  console.log('✅ Rotas de auth carregadas');
-} catch(e) {
-  console.log('⚠️ Rotas de auth nao carregadas:', e.message);
-}
-
-try {
-  app.use('/api/cart', require('./routes/cart'));
-  console.log('✅ Rotas de cart carregadas');
-} catch(e) {
-  console.log('⚠️ Rotas de cart nao carregadas:', e.message);
-}
-
-try {
-  app.use('/api/orders', require('./routes/orders'));
-  console.log('✅ Rotas de orders carregadas');
-} catch(e) {
-  console.log('⚠️ Rotas de orders nao carregadas:', e.message);
-}
+app.get('/api/perfumes', async (req, res) => {
+  try {
+    const db = mongoose.connection.db;
+    const perfumes = await db.collection('perfumes').find({}).toArray();
+    res.json({ success: true, data: perfumes });
+  } catch(e) {
+    res.json({ success: true, data: [] });
+  }
+});
 
 module.exports = app;
