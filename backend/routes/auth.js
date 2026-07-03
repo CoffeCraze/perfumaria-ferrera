@@ -1,0 +1,150 @@
+const express = require('express');
+const router = express.Router();
+
+// Rota de login
+router.post('/login', async (req, res) => {
+  try {
+    const { email, senha } = req.body;
+    console.log('Tentativa de login:', email);
+
+    const mongoose = require('mongoose');
+    const bcrypt = require('bcryptjs');
+    const jwt = require('jsonwebtoken');
+    const db = mongoose.connection.db;
+
+    const user = await db.collection('users').findOne({ email: email.toLowerCase() });
+
+    if (!user) {
+      console.log('Usuario nao encontrado:', email);
+      return res.status(401).json({ success: false, message: 'Email ou senha incorretos' });
+    }
+
+    const senhaCorreta = await bcrypt.compare(senha, user.senha);
+
+    if (!senhaCorreta) {
+      console.log('Senha incorreta para:', email);
+      return res.status(401).json({ success: false, message: 'Email ou senha incorretos' });
+    }
+
+    const token = jwt.sign(
+      { id: user._id.toString() },
+      process.env.JWT_SECRET || 'ferrera_secret',
+      { expiresIn: '30d' }
+    );
+
+    console.log('Login bem sucedido:', email);
+
+    res.json({
+      success: true,
+      data: {
+        token,
+        usuario: {
+          id: user._id,
+          nome: user.nome,
+          email: user.email,
+          role: user.role
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Erro no login:', error);
+    res.status(500).json({ success: false, message: 'Erro interno do servidor' });
+  }
+});
+
+// Rota de registro
+router.post('/registro', async (req, res) => {
+  try {
+    const { nome, email, senha } = req.body;
+    console.log('Tentativa de registro:', email);
+
+    const mongoose = require('mongoose');
+    const bcrypt = require('bcryptjs');
+    const jwt = require('jsonwebtoken');
+    const db = mongoose.connection.db;
+
+    const existe = await db.collection('users').findOne({ email: email.toLowerCase() });
+    if (existe) {
+      return res.status(400).json({ success: false, message: 'Email ja cadastrado' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const senhaHash = await bcrypt.hash(senha, salt);
+
+    const result = await db.collection('users').insertOne({
+      nome,
+      email: email.toLowerCase(),
+      senha: senhaHash,
+      role: 'cliente',
+      ativo: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+
+    const token = jwt.sign(
+      { id: result.insertedId.toString() },
+      process.env.JWT_SECRET || 'ferrera_secret',
+      { expiresIn: '30d' }
+    );
+
+    console.log('Registro bem sucedido:', email);
+
+    res.status(201).json({
+      success: true,
+      data: {
+        token,
+        usuario: {
+          id: result.insertedId,
+          nome,
+          email,
+          role: 'cliente'
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Erro no registro:', error);
+    res.status(500).json({ success: false, message: 'Erro interno do servidor' });
+  }
+});
+
+// Rota de perfil
+router.get('/perfil', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      return res.status(401).json({ success: false, message: 'Nao autorizado' });
+    }
+
+    const jwt = require('jsonwebtoken');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'ferrera_secret');
+    
+    const mongoose = require('mongoose');
+    const db = mongoose.connection.db;
+    const user = await db.collection('users').findOne({ 
+      _id: new mongoose.Types.ObjectId(decoded.id) 
+    });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Usuario nao encontrado' });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        id: user._id,
+        nome: user.nome,
+        email: user.email,
+        role: user.role,
+        telefone: user.telefone
+      }
+    });
+
+  } catch (error) {
+    console.error('Erro ao buscar perfil:', error);
+    res.status(401).json({ success: false, message: 'Token invalido' });
+  }
+});
+
+module.exports = router;
