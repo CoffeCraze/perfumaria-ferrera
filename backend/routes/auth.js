@@ -147,4 +147,58 @@ router.get('/perfil', async (req, res) => {
   }
 });
 
+// Login com Google
+router.post('/google', async (req, res) => {
+  try {
+    const { nome, email, googleId, avatar } = req.body;
+    console.log('Login Google:', email);
+
+    const mongoose = require('mongoose');
+    const jwt = require('jsonwebtoken');
+    const db = mongoose.connection.db;
+
+    // Verificar se usuário já existe
+    let user = await db.collection('users').findOne({ email: email.toLowerCase() });
+
+    if (!user) {
+      // Criar novo usuário
+      const result = await db.collection('users').insertOne({
+        nome,
+        email: email.toLowerCase(),
+        googleId,
+        avatar,
+        role: 'cliente',
+        ativo: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+      user = await db.collection('users').findOne({ _id: result.insertedId });
+    }
+
+    const token = jwt.sign(
+      { id: user._id.toString() },
+      process.env.JWT_SECRET || 'ferrera_secret',
+      { expiresIn: '30d' }
+    );
+
+    res.json({
+      success: true,
+      data: {
+        token,
+        usuario: {
+          id: user._id,
+          nome: user.nome,
+          email: user.email,
+          role: user.role,
+          avatar: user.avatar
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Erro login Google:', error);
+    res.status(500).json({ success: false, message: 'Erro ao fazer login com Google' });
+  }
+});
+
 module.exports = router;
